@@ -4,42 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <stdarg.h>
 #include <libgen.h>
 #include <regex.h>
-
-void trim_right(char delim, char *s) {
-  char *pos;
-  if ( (pos=strchr(s, delim)) != NULL) *pos = '\0';
-}
-
-bool each_delim(char delim, char *spec, bool (*callback)(char*, char*)) {
-  char *line = NULL;
-  size_t _ = 0;
-  bool match = false;
-
-  while (getdelim(&line, &_, delim, stdin) != -1) {
-    trim_right(delim, line);
-    match = callback(spec, line);
-  }
-  free(line);
-  return match;
-}
-
-bool spec_check(char type, char *fname) {
-  printf("%s: %c\n", fname, type);
-  return false;
-}
-
-bool each_char(char *spec, char *fname) {
-  if (!strlen(fname)) return false;
-  char *type = spec;
-  while (*type) {
-    if (spec_check(*type++, fname)) return true;
-  }
-  return false;
-}
 
 typedef struct Conf {
   bool v;
@@ -56,6 +26,56 @@ Conf conf = {
   .spec = "bcdpfls",
   .progname = NULL
 };
+
+void trim_right(char delim, char *s) {
+  char *pos;
+  if ( (pos=strchr(s, delim)) != NULL) *pos = '\0';
+}
+
+bool each_delim(char delim, char *spec, bool (*callback)(char*, char*)) {
+  char *line = NULL;
+  size_t _ = 0;
+  bool match = false;
+
+  while (getdelim(&line, &_, delim, stdin) != -1) {
+    trim_right(delim, line);
+    if (callback(spec, line)) {
+      printf("%s\n", line);
+      match = true;
+    }
+  }
+  free(line);
+  return match;
+}
+
+bool spec_check(char type, char *fname) {
+  struct stat sb;
+  int (*relevant_stat)(const char*, struct stat *) = lstat;
+
+  if (conf.v) fprintf(stderr, "* %s  %c\n", fname, type);
+  if (conf.L) relevant_stat = stat;
+  if (relevant_stat(fname, &sb) != 0) return false;
+
+  switch (type) {
+  case 'b': return S_ISBLK(sb.st_mode);  // block special
+  case 'c': return S_ISCHR(sb.st_mode);  // character special
+  case 'd': return S_ISDIR(sb.st_mode);  // directory
+  case 'p': return S_ISFIFO(sb.st_mode); // named pipe
+  case 'f': return S_ISREG(sb.st_mode);  // file
+  case 'l': return S_ISLNK(sb.st_mode);  // symlink
+  case 's': return S_ISSOCK(sb.st_mode); // socket
+  }
+  return false;
+}
+
+bool each_char(char *spec, char *fname) {
+  if (!strlen(fname)) return false;
+  char *type = spec;
+  while (*type) {
+    if (spec_check(*type++, fname)) return true;
+  }
+  return false;
+}
 
 void err(const char *fmt, ...) {
   va_list args;
