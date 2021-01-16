@@ -12,6 +12,7 @@
 #include <regex.h>
 
 typedef struct Conf {
+  char *version;
   bool v;
   bool L;
   char d;
@@ -20,6 +21,7 @@ typedef struct Conf {
 } Conf;
 
 Conf conf = {
+  .version = "0.0.1",
   .v = false,
   .L = false,
   .d = '\n',
@@ -88,20 +90,26 @@ void err(const char *fmt, ...) {
 
 void usage() {
   fprintf(stderr,
-          "Usage: printf '%%s\\n%%s' /usr /usr/file | %s [-L] [bcdpfls]\n%s",
+          "Usage: printf '%%s\\n%%s' /usr /usr/file | %s [-0L] [-d char] [bcdpfls]\n%s",
           conf.progname,
-          "  -L            is -L from find(1)\n"
-          "  bcdpfls       see find(1) -type option\n");
+          "-L         is -L from find(1)\n"
+          "-d CHAR    a custom delimiter instead of a newline\n"
+          "-0         a shortcut for -d $'\\0'\n"
+          "-V         print the program version\n"
+          "\n"
+          "bcdpfls    see find(1) -type option\n");
   exit(2);
 }
 
 void parse_opt(int argc, char **argv) {
   int opt;
-  while ((opt = getopt(argc, argv, "vLd:")) != -1) {
+  while ((opt = getopt(argc, argv, "vLd:0V")) != -1) {
     switch (opt) {
+    case 'V': printf("%s\n", conf.version); exit(0);
     case 'v': conf.v = true; break;
     case 'L': conf.L = true; break;
     case 'd': conf.d = optarg[0]; break;
+    case '0': conf.d = '\0'; break;
     default: usage();
     }
   }
